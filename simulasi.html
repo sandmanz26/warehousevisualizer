@@ -1,0 +1,769 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+</head>
+<body>
+<title>Nadi Gudang</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: peta lantai adalah produknya. Semua panel lain mengelilingi peta dan menunjuk balik ke peta. */
+:root{
+  color-scheme:dark;
+  --bg:#0e1417; --panel:#141c20; --panel2:#1b262b; --line:#2b393f; --fg:#e7edef; --muted:#93a4ab; --faint:#5f7178;
+  --floor:#182125; --floor2:#1e292e; --empty:#141c20;
+  --mark:#f2c230;            /* kuning marka lantai: aksen + seleksi */
+  --ok:#3ecf8e; --warn:#f5a524; --crit:#ff5d5d; --info:#6cb6ff;
+  --fork:#ff8a3d; --amr:#4fd1e8; --parcel:#f4f7f8; --cold:#7cc4ff;
+  --fill0:#22333b; --fill1:#1f8087; --fill2:#86ecd9;
+  --heat0:#27333a; --heat1:#c9801f; --heat2:#ff5a36;
+  --age0:#27313c; --age1:#7a5bd0; --age2:#f27fcb;
+  --display:"Barlow Condensed","Arial Narrow",sans-serif;
+  --body:"Barlow",system-ui,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme: light){ :root:not([data-theme="dark"]){
+  color-scheme:light;
+  --bg:#edf0ef; --panel:#fbfcfb; --panel2:#eef2f1; --line:#cfd8d6; --fg:#152024; --muted:#52646a; --faint:#8a999e;
+  --floor:#e2e8e6; --floor2:#d7dfdd; --empty:#eef2f1;
+  --mark:#b88600; --ok:#12855a; --warn:#b06a00; --crit:#cf3636; --info:#2b6fc2;
+  --fork:#d65a14; --amr:#0b8aa5; --parcel:#152024; --cold:#2f7fc4;
+  --fill0:#cbd6d4; --fill1:#4aa6a6; --fill2:#0c5460;
+  --heat0:#d3dad8; --heat1:#e09a2f; --heat2:#c62a12;
+  --age0:#d3dad8; --age1:#9a82dc; --age2:#a3217a;
+}}
+:root[data-theme="light"]{
+  color-scheme:light;
+  --bg:#edf0ef; --panel:#fbfcfb; --panel2:#eef2f1; --line:#cfd8d6; --fg:#152024; --muted:#52646a; --faint:#8a999e;
+  --floor:#e2e8e6; --floor2:#d7dfdd; --empty:#eef2f1;
+  --mark:#b88600; --ok:#12855a; --warn:#b06a00; --crit:#cf3636; --info:#2b6fc2;
+  --fork:#d65a14; --amr:#0b8aa5; --parcel:#152024; --cold:#2f7fc4;
+  --fill0:#cbd6d4; --fill1:#4aa6a6; --fill2:#0c5460;
+  --heat0:#d3dad8; --heat1:#e09a2f; --heat2:#c62a12;
+  --age0:#d3dad8; --age1:#9a82dc; --age2:#a3217a;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.4 var(--body);
+  padding-block:14px 28px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+button,input{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--mark);outline-offset:2px}
+.num{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.eyebrow{font:600 12px/1 var(--display);letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+
+/* header */
+.top{display:flex;flex-wrap:wrap;align-items:center;gap:12px 22px;margin-bottom:14px}
+.brand{display:flex;flex-direction:column;gap:3px;margin-right:auto;min-width:0}
+.brand h1{margin:0;font:700 26px/1 var(--display);letter-spacing:.06em;text-transform:uppercase}
+.brand h1 span{color:var(--mark)}
+.brand small{color:var(--muted);font-size:12.5px}
+.clock{display:flex;flex-direction:column;gap:2px;align-items:flex-end}
+.clock b{font:500 22px/1 var(--mono);font-variant-numeric:tabular-nums}
+.seg{display:flex;border:1px solid var(--line);border-radius:6px;overflow:hidden}
+.seg button{background:none;border:0;border-right:1px solid var(--line);padding:6px 10px;font:500 12.5px var(--mono);color:var(--muted)}
+.seg button:last-child{border-right:0}
+.seg button[aria-pressed="true"]{background:var(--mark);color:#161200}
+.search{position:relative}
+.search input{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:7px 10px;width:210px;max-width:100%}
+.search input::placeholder{color:var(--faint)}
+.search output{position:absolute;right:8px;top:50%;transform:translateY(-50%);font:12px var(--mono);color:var(--mark);pointer-events:none}
+
+/* vitals */
+.vitals{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));border:1px solid var(--line);border-radius:8px;background:var(--panel);margin-bottom:14px;overflow:hidden}
+.vital{padding:10px 14px 8px;border-right:1px solid var(--line);border-bottom:1px solid var(--line);margin:0 -1px -1px 0;min-width:0}
+.vital .v{display:flex;align-items:baseline;gap:6px;margin-top:5px}
+.vital .v b{font:600 30px/1 var(--display);font-variant-numeric:tabular-nums}
+.vital .v span{color:var(--muted);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.vital svg{display:block;width:100%;height:26px;margin-top:4px}
+.vital svg .ar{fill:var(--amr);opacity:.14}
+.vital svg .ln{fill:none;stroke:var(--amr);stroke-width:1.5;vector-effect:non-scaling-stroke}
+.vital.bad .v b{color:var(--crit)} .vital.bad svg .ln{stroke:var(--crit)} .vital.bad svg .ar{fill:var(--crit)}
+
+/* grid */
+.grid{display:grid;gap:14px;grid-template-columns:minmax(0,1fr)}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:8px;min-width:0}
+.ph{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;padding:10px 14px;border-bottom:1px solid var(--line)}
+.ph h2{margin:0 auto 0 0;font:600 15px/1 var(--display);letter-spacing:.12em;text-transform:uppercase}
+.ph .hint{color:var(--muted);font-size:12px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chips button{background:none;border:1px solid var(--line);border-radius:99px;padding:4px 11px;font-size:12.5px;color:var(--muted)}
+.chips button[aria-pressed="true"]{border-color:var(--mark);color:var(--fg);background:color-mix(in srgb,var(--mark) 14%,transparent)}
+.map{position:relative;width:100%;aspect-ratio:28/15;min-height:320px;max-height:76vh;overflow:hidden;border-radius:0 0 8px 8px}
+.map canvas{position:absolute;inset:0;width:100%;height:100%;touch-action:none;cursor:grab;display:block}
+.map canvas.drag{cursor:grabbing}
+.legend{position:absolute;left:10px;bottom:10px;display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;background:color-mix(in srgb,var(--panel) 88%,transparent);border:1px solid var(--line);border-radius:6px;padding:6px 10px;font-size:11.5px;color:var(--muted);max-width:calc(100% - 70px);pointer-events:none}
+.legend .bar{width:86px;height:8px;border-radius:2px}
+.legend .k{display:flex;align-items:center;gap:5px}
+.legend i{display:inline-block;width:9px;height:9px}
+.zoom{position:absolute;right:10px;top:10px;display:flex;flex-direction:column;border:1px solid var(--line);border-radius:6px;overflow:hidden;background:var(--panel)}
+.zoom button{background:none;border:0;border-bottom:1px solid var(--line);width:32px;height:30px;font:500 15px var(--mono);color:var(--fg)}
+.zoom button:last-child{border-bottom:0;font-size:11px}
+.tip{position:absolute;pointer-events:none;background:var(--panel2);border:1px solid var(--line);border-radius:5px;padding:5px 8px;font-size:12px;white-space:nowrap;z-index:3}
+.tip b{font-family:var(--mono);font-weight:500}
+
+/* signals */
+.sigs{list-style:none;margin:0;padding:6px;display:flex;flex-direction:column;gap:6px}
+.sig{display:grid;grid-template-columns:auto minmax(0,1fr);gap:4px 10px;padding:9px 10px;border-radius:6px;background:var(--panel2)}
+.sig .sev{grid-row:span 2;align-self:start;font:600 11px/1 var(--display);letter-spacing:.12em;padding:4px 6px;border-radius:3px;color:#10161a;background:var(--info)}
+.sig.warn .sev{background:var(--warn)} .sig.crit .sev{background:var(--crit)}
+.sig.flash{outline:2px solid var(--mark)}
+.sig b{font-weight:600;display:block;overflow-wrap:anywhere}
+.sig .meta{color:var(--muted);font-size:12px}
+.sig .acts{grid-column:2;display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:3px}
+.btn{background:none;border:1px solid var(--line);border-radius:5px;padding:3px 10px;font-size:12.5px}
+.btn:hover{border-color:var(--fg)}
+.btn.pri{background:var(--mark);border-color:var(--mark);color:#161200;font-weight:600}
+.empty{padding:18px 14px;color:var(--muted)}
+
+/* inspector */
+.insp{padding:12px 14px;display:flex;flex-direction:column;gap:10px}
+.insp h3{margin:0;font:500 19px/1.1 var(--mono)}
+.insp .sub{color:var(--muted);font-size:12.5px;margin-top:-6px}
+.kv{display:grid;grid-template-columns:auto minmax(0,1fr);gap:5px 14px;font-size:13px}
+.kv dt{color:var(--muted)} .kv dd{margin:0;text-align:right;overflow-wrap:anywhere}
+.cells{display:flex;gap:3px}
+.cells i{flex:1;height:14px;border-radius:2px;background:var(--fill0)}
+.cells i.on{background:var(--fill1)}
+.meter{height:8px;border-radius:2px;background:var(--panel2);overflow:hidden}
+.meter i{display:block;height:100%;background:var(--amr)}
+.meter.w i{background:var(--warn)} .meter.c i{background:var(--crit)} .meter.g i{background:var(--ok)} .meter.y i{background:var(--mark)}
+.tag{display:inline-block;font:600 11px/1 var(--display);letter-spacing:.1em;padding:3px 6px;border:1px solid var(--line);border-radius:3px;text-transform:uppercase}
+.zrow{display:grid;grid-template-columns:110px minmax(0,1fr) 44px;gap:8px;align-items:center;font-size:12.5px}
+.zrow span:last-child{text-align:right}
+
+/* flow */
+.flowscroll{overflow-x:auto;padding:14px}
+.flow{display:flex;align-items:stretch;min-width:900px}
+.stage{flex:1 1 0;min-width:96px;border:1px solid var(--line);border-radius:6px;padding:8px 10px;display:flex;flex-direction:column;gap:3px;background:var(--panel2)}
+.stage .sn{font:600 12px/1 var(--display);letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.stage b{font:600 26px/1 var(--display);font-variant-numeric:tabular-nums}
+.stage .su{font-size:11.5px;color:var(--muted)}
+.stage .lvl{height:5px;border-radius:2px;background:var(--line);margin-top:auto;overflow:hidden}
+.stage .lvl i{display:block;height:100%;background:var(--amr);width:0}
+.stage.warn{border-color:var(--warn)} .stage.warn .lvl i{background:var(--warn)} .stage.warn .sn{color:var(--warn)}
+.stage.crit{border-color:var(--crit)} .stage.crit .lvl i{background:var(--crit)} .stage.crit .sn{color:var(--crit)}
+.link{flex:0 0 74px;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:4px;font-size:11px;color:var(--muted)}
+.link .lr{font:500 12.5px var(--mono);color:var(--fg)}
+.link .pipe{width:100%;height:var(--w,3px);background:repeating-linear-gradient(90deg,var(--amr) 0 8px,transparent 8px 14px);background-size:14px 100%;animation:run 1s linear infinite}
+@keyframes run{to{background-position:14px 0}}
+@media (prefers-reduced-motion:reduce){.link .pipe{animation:none}}
+
+/* docks timeline */
+.tlscroll{overflow-x:auto;padding:8px 14px 14px}
+.tl{position:relative;min-width:520px}
+.tl .ticks{position:relative;height:18px;margin-left:116px}
+.tl .ticks span{position:absolute;top:0;transform:translateX(-50%);font:11px var(--mono);color:var(--muted)}
+.tl .row{display:grid;grid-template-columns:116px minmax(0,1fr);align-items:center;height:22px}
+.tl .row>span{font-size:12px;color:var(--muted);white-space:nowrap}
+.tl .row>span b{font:500 12px var(--mono);color:var(--fg);margin-right:5px}
+.tl .trk{position:relative;height:16px;background:var(--panel2);border-radius:2px;overflow:hidden}
+.tl .bar{position:absolute;top:0;height:100%;border:1px solid var(--faint);border-radius:2px;overflow:hidden;padding:0;background:var(--panel);font:10.5px/14px var(--mono);color:var(--fg);text-align:left;white-space:nowrap}
+.tl .bar i{position:absolute;inset:0 auto 0 0;background:var(--amr);opacity:.45}
+.tl .bar.out i{background:var(--mark)}
+.tl .bar em{position:relative;font-style:normal;padding-left:4px}
+.tl .bar.plan{border-style:dashed;background:none;color:var(--muted)}
+.tl .bar.late{border-color:var(--warn);color:var(--warn)}
+.tl .now{position:absolute;top:14px;bottom:0;width:0;border-left:1.5px solid var(--mark);z-index:2}
+.tl .gap{height:8px}
+
+/* fleet */
+.fleetwrap{padding:12px 14px;display:flex;flex-direction:column;gap:12px}
+.fleet{display:grid;grid-template-columns:repeat(auto-fill,minmax(44px,1fr));gap:6px}
+.unit{position:relative;aspect-ratio:1;background:none;border:0;padding:0;border-radius:50%}
+.unit svg{width:100%;height:100%;display:block}
+.unit .tr{fill:none;stroke:var(--line);stroke-width:3}
+.unit .bt{fill:none;stroke-width:3;stroke-linecap:butt;transform:rotate(-90deg);transform-origin:50% 50%}
+.unit text{font:500 10px var(--mono);fill:var(--fg);text-anchor:middle;dominant-baseline:central}
+.unit.F .bt{stroke:var(--fork)} .unit.A .bt{stroke:var(--amr)}
+.unit.idle text{fill:var(--faint)}
+.unit.chg .core{fill:color-mix(in srgb,var(--ok) 25%,transparent)}
+.unit.fault .core{fill:var(--crit)} .unit.fault text{fill:#fff}
+.unit .core{fill:transparent}
+.unit.sel{outline:2px solid var(--mark);outline-offset:1px}
+.stack{display:flex;height:8px;border-radius:2px;overflow:hidden;background:var(--panel2)}
+.stack i{display:block;height:100%}
+.keys{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12px;color:var(--muted)}
+.keys i{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px}
+
+@media (min-width:1080px){
+  .grid{grid-template-columns:minmax(0,1fr) 340px}
+  .mapp{grid-column:1;grid-row:1}
+  .rail{grid-column:2;grid-row:1;position:relative}
+  .rail .inner{position:absolute;inset:0}
+  .flowp{grid-column:1/-1}
+}
+.rail .inner{display:flex;flex-direction:column;gap:14px}
+.rail .sigp{display:flex;flex-direction:column}
+.rail .sigp .scroll{overflow:auto;min-height:0;max-height:340px}
+@media (min-width:1080px){.rail .sigp{flex:1 1 0;min-height:0}.rail .sigp .scroll{max-height:none;flex:1}}
+</style>
+
+<header class="top">
+  <div class="brand">
+    <h1>Nadi <span>Gudang</span></h1>
+    <small>Menara kontrol · DC Cikarang 01 · 832 lokasi rak · data simulasi, berjalan di browser</small>
+  </div>
+  <div class="clock"><b id="clock">06:00:00</b><span class="eyebrow" id="shift">Shift 1</span></div>
+  <div class="seg" role="group" aria-label="Kecepatan simulasi" id="speed">
+    <button data-s="0" aria-pressed="false" aria-label="Jeda">❚❚</button>
+    <button data-s="5" aria-pressed="false">5×</button>
+    <button data-s="20" aria-pressed="true">20×</button>
+    <button data-s="60" aria-pressed="false">60×</button>
+    <button data-s="200" aria-pressed="false">200×</button>
+  </div>
+  <div class="search"><input id="q" type="search" placeholder="Cari SKU atau lokasi…" aria-label="Cari SKU atau lokasi" autocomplete="off"><output id="qn"></output></div>
+</header>
+
+<section class="vitals" id="vitals" aria-label="Tanda vital gudang"></section>
+
+<main class="grid">
+  <section class="panel mapp">
+    <div class="ph">
+      <h2>Lantai gudang</h2>
+      <div class="chips" role="group" aria-label="Lensa peta" id="lens">
+        <button data-l="isi" aria-pressed="true">Isi rak</button>
+        <button data-l="laju" aria-pressed="false">Laju gerak</button>
+        <button data-l="umur" aria-pressed="false">Umur stok</button>
+        <button data-l="lalu" aria-pressed="false">Lalu lintas</button>
+      </div>
+    </div>
+    <div class="map" id="map">
+      <canvas id="cv" aria-label="Peta langsung lantai gudang: rak, forklift, AMR, konveyor, dan truk di dock"></canvas>
+      <div class="zoom"><button id="zin" aria-label="Perbesar">+</button><button id="zout" aria-label="Perkecil">−</button><button id="zfit" aria-label="Tampilkan seluruh lantai">FIT</button></div>
+      <div class="legend" id="legend"></div>
+      <div class="tip" id="tip" hidden></div>
+    </div>
+  </section>
+
+  <aside class="rail"><div class="inner">
+    <section class="panel sigp">
+      <div class="ph"><h2>Sinyal</h2><span class="hint" id="sigcount"></span><button class="btn" id="spawn">Uji gangguan</button></div>
+      <div class="scroll"><ul class="sigs" id="sigs"></ul></div>
+    </section>
+    <section class="panel">
+      <div class="ph"><h2>Inspektur</h2><button class="btn" id="unsel" hidden>Tutup</button></div>
+      <div class="insp" id="insp"></div>
+    </section>
+  </div></aside>
+
+  <section class="panel flowp">
+    <div class="ph"><h2>Aliran barang</h2><span class="hint">Angka besar = barang yang sedang berada di tahap itu. Pipa = laju per jam, 15 menit terakhir.</span></div>
+    <div class="flowscroll"><div class="flow" id="flow"></div></div>
+  </section>
+
+  <section class="panel">
+    <div class="ph"><h2>Jadwal dock</h2><span class="hint">20 menit lalu → 70 menit ke depan</span></div>
+    <div class="tlscroll"><div class="tl" id="tl"></div></div>
+  </section>
+
+  <section class="panel">
+    <div class="ph"><h2>Armada</h2><span class="hint">Cincin = baterai</span></div>
+    <div class="fleetwrap"><div class="fleet" id="fleet"></div><div class="stack" id="fstack"></div><div class="keys" id="fkeys"></div></div>
+  </section>
+</main>
+
+<script>
+(()=>{'use strict';
+/* ============ util ============ */
+const $=id=>document.getElementById(id);
+const rnd=(a,b)=>a+Math.random()*(b-a), ri=(a,b)=>Math.floor(rnd(a,b+1)), pick=a=>a[Math.floor(Math.random()*a.length)];
+const pad=n=>String(n).padStart(2,'0'), clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const nf=(n,d=0)=>Number(n).toLocaleString('id-ID',{minimumFractionDigits:d,maximumFractionDigits:d});
+const man=(a,b)=>Math.abs(a.x-b.x)+Math.abs(a.y-b.y);
+const avg=a=>a.length?a.reduce((s,x)=>s+x,0)/a.length:0;
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function clock(t){const s=Math.floor(6*3600+t)%86400;return pad(Math.floor(s/3600))+':'+pad(Math.floor(s/60)%60)+':'+pad(s%60);}
+const hm=t=>clock(t).slice(0,5);
+const mmss=s=>{s=Math.max(0,Math.round(s));return Math.floor(s/60)+':'+pad(s%60);};
+class Rate{constructor(){this.a=[];}add(t){this.a.push(t);}perHour(t){while(this.a.length&&this.a[0]<t-900)this.a.shift();return this.a.length*4;}}
+const keep=(a,v,n)=>{a.push(v);if(a.length>n)a.shift();};
+
+/* ============ dunia (meter) ============ */
+const W=280,H=150,BX0=24,BX1=256,BY0=10,BY1=140,CROSS=[17,75,133];
+const RES_AISLES=[63,73,83,93,103,113,123,133],FWD_AISLES=[149,159,169,179,189];
+const LANE_IN=40,LANE_PK=198,YS=[28,46,64,86,104,122];
+let t=0;
+const bays=[],resBays=[],fwdBays=[],skus=[];
+function mkBays(aisles,zone){aisles.forEach((ax,ai)=>{for(const side of[-1,1])for(let seg=0;seg<2;seg++)for(let k=0;k<16;k++){
+  const y=(seg?80:22)+k*3,z=zone==='R'&&ai>=6&&seg===0?'K':zone;
+  const b={id:bays.length,zone:z,ai,ax,x:side<0?ax-5:ax+2.5,y,cy:y+1.5,side,seg,cap:zone==='P'?36:6,fill:0,sku:null,vel:0,last:0,pend:0,resv:0,rep:false,blocked:false,
+    code:`${z}${pad(ai+1)}-${pad(seg*16+k+1)}${side<0?'L':'R'}`};
+  bays.push(b);(zone==='P'?fwdBays:resBays).push(b);}});}
+mkBays(RES_AISLES,'R');mkBays(FWD_AISLES,'P');
+const bayPt=b=>({x:b.ax,y:b.cy,lane:b.ax});
+const ZONE={R:'Cadangan',K:'Rantai dingin',P:'Pick face'};
+
+/* SKU + slotting ABC: SKU terlaris diberi pick face terdekat ke stasiun kemas */
+(()=>{const order=[...fwdBays].sort((a,b)=>(b.ax-a.ax)||(Math.abs(a.cy-75)-Math.abs(b.cy-75)));
+  for(let i=0;i<320;i++){const cls=i<64?'A':i<160?'B':'C';
+    skus.push({id:i,name:'SKU-'+(1001+i),cls,w:(cls==='A'?70/64:cls==='B'?22/96:8/160)*rnd(.6,1.4),cold:i%16===7,pf:order[i]});}
+  for(const[a,b]of[[3,301],[12,309],[22,316]]){const x=skus[a].pf;skus[a].pf=skus[b].pf;skus[b].pf=x;} // sengaja salah slot: bahan saran re-slot
+  for(const s of skus){const b=s.pf;b.sku=s;b.fill=ri(14,36);b.last=-rnd(0,s.cls==='A'?.2:s.cls==='B'?3:20)*86400;}
+})();
+let wsum=0;const wcum=skus.map(s=>wsum+=s.w);
+function drawSku(){const r=Math.random()*wsum;let lo=0,hi=wcum.length-1;while(lo<hi){const m=(lo+hi)>>1;if(wcum[m]<r)lo=m+1;else hi=m;}return skus[lo];}
+/* Putaway: gabung ke SKU yang sama dulu, lalu kelas A dekat zona pick, C paling jauh */
+function findSlot(s){const z=s.cold?'K':'R',tx=s.cls==='A'?133:s.cls==='B'?98:63;let best=null,bs=1e9;
+  for(const b of resBays){if(b.zone!==z||b.blocked||b.fill+b.pend>=b.cap||(b.sku&&b.sku!==s))continue;
+    const sc=(b.sku===s?-60:0)+Math.abs(b.ax-tx)+Math.abs(b.cy-75)*.15+Math.random()*6;if(sc<bs){bs=sc;best=b;}}return best;}
+for(const s of skus)for(let n=s.cls==='A'?2:1;n--;){const b=findSlot(s);if(!b)continue;b.sku=s;b.fill=ri(2,6);
+  b.last=-rnd(s.cls==='C'?2:0,s.cls==='A'?2:s.cls==='B'?10:45)*86400;}
+
+/* ============ rute: lorong vertikal + 3 gang silang ============ */
+function route(A,B){const p=[];const add=(x,y)=>{const l=p.length?p[p.length-1]:A;if(l.x!==x||l.y!==y)p.push({x,y});};
+  if(A.x!==A.lane)add(A.lane,A.y);
+  if(A.lane!==B.lane){let yc=CROSS[0],bc=1e9;for(const c of CROSS){const d=Math.abs(A.y-c)+Math.abs(B.y-c);if(d<bc){bc=d;yc=c;}}add(A.lane,yc);add(B.lane,yc);}
+  add(B.lane,B.y);if(B.x!==B.lane)add(B.x,B.y);return p;}
+
+/* ============ armada ============ */
+const agents=[],chargers=[];
+for(let i=0;i<10;i++)chargers.push({x:28+i*2.6,y:138,by:null});
+function mkAgent(type,i,at){agents.push({id:(type==='F'?'FL-':'AMR-')+pad(i+1),short:(type==='F'?'F':'A')+(i+1),type,speed:type==='F'?2.2:1.8,pos:{x:at.x,y:at.y},at,dest:null,
+  state:'idle',prev:null,path:null,pi:0,task:null,batt:rnd(24,100),timer:0,carry:false,hdg:0,trail:[],chg:null});}
+for(let i=0;i<8;i++)mkAgent('F',i,{x:LANE_IN,y:26+i*13,lane:LANE_IN});
+for(let i=0;i<20;i++)mkAgent('A',i,{x:LANE_PK,y:24+i*5.3,lane:LANE_PK});
+function go(a,pt,st){a.path=route(a.at,pt);a.pi=0;a.dest=pt;a.state=st;if(!a.path.length){a.path=null;arrive(a);}}
+function arrive(a){a.at=a.dest;
+  if(a.state==='toSrc'){a.state='load';a.timer=a.type==='F'?15:9;}
+  else if(a.state==='toDst'){a.state='unload';a.timer=a.type==='F'?15:6;}
+  else if(a.state==='toChg')a.state='chg';}
+const STATE={idle:'Menunggu tugas',toSrc:'Menuju titik ambil',load:'Mengambil',toDst:'Mengantar',unload:'Menurunkan',toChg:'Menuju pengisian',chg:'Mengisi daya',fault:'Gangguan'};
+
+/* ============ dock ============ */
+const CARRIERS=['Lintas Arta Cargo','Samudra Niaga','Garda Logistik','Tirta Ekspedisi','Mega Trans'];
+const ROUTES=['Jabodetabek','Bandung','Semarang','Surabaya','Medan · udara','Makassar · laut'];
+let asn=4410,trp=7720,soNo=48200;
+const inDocks=[30,52,75,98,120].map((y,i)=>({id:'D'+pad(i+1),dir:'in',y,pt:{x:28,y,lane:LANE_IN},cur:null,next:null,hist:[]}));
+const outDocks=YS.map((y,i)=>({id:'D'+pad(i+6),dir:'out',y,route:ROUTES[i],buf:0,cur:null,nextAt:0,hist:[]}));
+const planIn=eta=>({id:'ASN-'+(asn++),carrier:pick(CARRIERS),n:ri(17,23),queue:[],onboard:0,state:'plan',plan:eta,eta,tArr:0,tDock:0,tOut:0});
+inDocks.forEach((d,i)=>{d.next=planIn([0,14,0,31,47][i]*60);});
+function composePO(n){const st=new Float32Array(skus.length);
+  for(const b of resBays)if(b.sku)st[b.sku.id]+=b.fill+b.pend;
+  for(const d of inDocks)if(d.cur)for(const q of d.cur.queue)st[q]++;
+  const arr=skus.map(s=>({s,c:(st[s.id]+Math.random()*.5)/(s.w*10)})).sort((a,b)=>a.c-b.c),out=[];
+  for(const{s}of arr){for(let i=s.cls==='A'?3:s.cls==='B'?2:1;i--&&out.length<n;)out.push(s.id);if(out.length>=n)break;}return out;}
+function stepDocks(){
+  for(const d of inDocks){const c=d.cur;
+    if(!c){if(t>=d.next.eta){d.cur=d.next;d.cur.state='in';d.cur.tArr=t;d.next=planIn(t+rnd(44,60)*60+(occ()>.88?1200:0));}continue;}
+    if(c.state==='in'&&t-c.tArr>=45){c.state='dock';c.tDock=t;c.queue=composePO(c.n);c.onboard=c.n;}
+    else if(c.state==='dock'&&c.onboard===0){c.state='out';c.tOut=t;}
+    else if(c.state==='out'&&t-c.tOut>=45){keep(d.hist,c,3);d.cur=null;}}
+  for(const d of outDocks){const c=d.cur;
+    if(!c){if(t>=d.nextAt)d.cur={id:'TRP-'+(trp++),carrier:d.route,cap:48,load:0,state:'in',tArr:t,cutoff:t+rnd(35,55)*60,tOut:0};continue;}
+    if(c.state==='in'&&t-c.tArr>=45){c.state='dock';c.load=Math.min(c.cap,d.buf);d.buf-=c.load;}
+    else if(c.state==='dock'&&(t>=c.cutoff||c.load>=c.cap)){c.state='out';c.tOut=t;rate.ship.add(t);}
+    else if(c.state==='out'&&t-c.tOut>=45){keep(d.hist,c,3);d.cur=null;d.nextAt=t+rnd(3,6)*60;}}
+}
+
+/* ============ order, kemas, konveyor ============ */
+const pTasks=[],repTasks=[],stations=YS.map((y,i)=>({id:'PK'+(i+1),y,pt:{x:200.5,y,lane:LANE_PK},queue:[],inb:0,prog:0,busy:null})),parcels=[];
+const rate={put:new Rate,rep:new Rate,line:new Rate,pick:new Rate,pack:new Rate,parcel:new Rate,load:new Rate,ship:new Rate};
+const d2s=[],cyc=[],slaHits=[];let openOrders=0,stockouts=0,oacc=0,jam=false,coldT=4.2,coldDrift=false;
+function newOrder(){const o={id:'SO-'+(soNo++),t0:t,lines:0,packed:0,lane:ri(0,5)};
+  for(let n=ri(1,3);n--;){let b=null,q=0;for(let k=0;k<5&&!b;k++){const s=drawSku(),c=s.pf;q=ri(1,3);if(!c.blocked&&c.fill-c.resv>=q)b=c;}
+    if(!b){stockouts++;continue;}b.resv+=q;o.lines++;pTasks.push({kind:'pick',bay:b,qty:q,order:o,t0:t,st:null});rate.line.add(t);}
+  if(o.lines)openOrders++;}
+function stepOrders(dt){if(pTasks.length>160)return;
+  oacc+=235*(1+.25*Math.sin(t/3600*2*Math.PI/3))/3600*dt;while(oacc>=1){oacc--;newOrder();}}
+function stepStations(dt){if(jam)return;for(const s of stations){
+  if(!s.busy&&s.queue.length){s.busy=s.queue.shift();s.prog=0;}
+  if(s.busy){s.prog+=dt;if(s.prog>=26){const o=s.busy;s.busy=null;o.packed++;rate.pack.add(t);
+    if(o.packed>=o.lines){const yl=YS[o.lane],pts=[[208,s.y],[216,s.y],[216,75],[228,75],[228,yl],[254,yl]],cum=[0];
+      for(let i=1;i<pts.length;i++)cum.push(cum[i-1]+Math.abs(pts[i][0]-pts[i-1][0])+Math.abs(pts[i][1]-pts[i-1][1]));
+      parcels.push({pts,cum,d:0,order:o,x:208,y:s.y});rate.parcel.add(t);}}}}}
+function stepParcels(dt){if(jam)return;for(let i=parcels.length-1;i>=0;i--){const p=parcels[i];p.d+=1.2*dt;const L=p.cum[p.cum.length-1];
+  if(p.d>=L){parcels.splice(i,1);const o=p.order,d=outDocks[o.lane],c=(t-o.t0)/60;keep(cyc,c,60);keep(slaHits,c<=20?1:0,120);openOrders--;rate.load.add(t);
+    if(d.cur&&d.cur.state==='dock'&&d.cur.load<d.cur.cap)d.cur.load++;else d.buf++;continue;}
+  let k=1;while(p.cum[k]<p.d)k++;const f=(p.d-p.cum[k-1])/(p.cum[k]-p.cum[k-1]||1);
+  p.x=p.pts[k-1][0]+(p.pts[k][0]-p.pts[k-1][0])*f;p.y=p.pts[k-1][1]+(p.pts[k][1]-p.pts[k-1][1])*f;}}
+
+/* ============ penugasan ============ */
+function repScan(){for(const b of fwdBays){if(b.rep||b.blocked||b.fill>12)continue;let src=null,bd=1e9;
+  for(const r of resBays){if(r.sku!==b.sku||r.blocked||r.fill-r.resv<=0)continue;const d=Math.abs(r.ax-b.ax)+Math.abs(r.cy-b.cy);if(d<bd){bd=d;src=r;}}
+  if(src){src.resv++;b.rep=true;repTasks.push({kind:'rep',src,dst:b,sku:b.sku,t0:t,by:null});}}}
+function jobF(a){let rep=null,rs=1e9,trk=null,ts=1e9;
+  for(const k of repTasks){if(k.by)continue;const sc=man(a.pos,{x:k.src.ax,y:k.src.cy})-(k.dst.fill===0?120:30)-(t-k.t0)*.2;if(sc<rs){rs=sc;rep=k;}}
+  for(const d of inDocks){const c=d.cur;if(!c||c.state!=='dock'||!c.queue.length)continue;const sc=man(a.pos,d.pt)-(t-c.tDock)*.05;if(sc<ts){ts=sc;trk=d;}}
+  const tryPut=()=>{if(!trk)return false;const q=trk.cur.queue;for(let i=q.length-1;i>=Math.max(0,q.length-6);i--){const s=skus[q[i]],b=findSlot(s);
+    if(b){q.splice(i,1);b.pend++;b.sku=s;a.task={kind:'put',truck:trk.cur,dock:trk,sku:s,dst:b,t0:t};go(a,trk.pt,'toSrc');return true;}}return false;};
+  const tryRep=()=>{if(!rep)return false;rep.by=a;a.task=rep;go(a,bayPt(rep.src),'toSrc');return true;};
+  if(ts<rs)tryPut()||tryRep();else tryRep()||tryPut();}
+function jobA(a){let bi=-1,bs=1e9;for(let i=0;i<pTasks.length;i++){const k=pTasks[i];if(k.bay.blocked)continue;
+  const sc=Math.abs(a.pos.x-k.bay.ax)+Math.abs(a.pos.y-k.bay.cy)-(t-k.t0)*.4;if(sc<bs){bs=sc;bi=i;}}
+  if(bi<0)return;a.task=pTasks.splice(bi,1)[0];go(a,bayPt(a.task.bay),'toSrc');}
+function assign(){for(const a of agents){if(a.state!=='idle')continue;
+  if(a.batt<20){const c=chargers.find(c=>!c.by);if(c){c.by=a;a.chg=c;go(a,{x:c.x,y:c.y,lane:c.x},'toChg');continue;}}
+  a.type==='F'?jobF(a):jobA(a);}}
+function dwellDone(a){const k=a.task;
+  if(a.state==='load'){a.carry=true;
+    if(k.kind==='put'){k.truck.onboard--;go(a,bayPt(k.dst),'toDst');}
+    else if(k.kind==='rep'){const s=k.src;s.fill--;s.resv--;s.last=t;s.vel++;if(s.fill===0&&s.pend===0)s.sku=null;go(a,bayPt(k.dst),'toDst');}
+    else{const b=k.bay;b.fill-=k.qty;b.resv-=k.qty;b.vel++;b.last=t;rate.pick.add(t);
+      let st=stations[0];for(const s of stations)if(s.queue.length+s.inb<st.queue.length+st.inb)st=s;st.inb++;k.st=st;go(a,st.pt,'toDst');}
+  }else{a.carry=false;
+    if(k.kind==='put'){const b=k.dst;b.pend--;b.fill++;b.last=t;b.vel++;keep(d2s,(t-k.truck.tDock)/60,40);rate.put.add(t);}
+    else if(k.kind==='rep'){const b=k.dst;b.fill=Math.min(b.cap,b.fill+12);b.rep=false;rate.rep.add(t);repTasks.splice(repTasks.indexOf(k),1);}
+    else{k.st.inb--;k.st.queue.push(k.order);}
+    a.task=null;a.state='idle';}}
+const GC=4,GW=Math.ceil(W/GC),GH=Math.ceil(H/GC),heat=new Float32Array(GW*GH);
+function stepAgent(a,dt){
+  if(a.state==='fault')return;
+  if(a.state==='chg'){a.batt=Math.min(100,a.batt+dt*.08);if(a.batt>=96){a.chg.by=null;a.chg=null;a.state='idle';}return;}
+  if(a.path){let d=a.speed*(a.batt<5?.35:1)*dt;a.batt=Math.max(0,a.batt-dt*.011);
+    while(d>0&&a.path){const p=a.path[a.pi],dx=p.x-a.pos.x,dy=p.y-a.pos.y,L=Math.hypot(dx,dy);
+      if(L<=d){a.pos.x=p.x;a.pos.y=p.y;d-=L;if(++a.pi>=a.path.length){a.path=null;arrive(a);}}
+      else{a.pos.x+=dx/L*d;a.pos.y+=dy/L*d;a.hdg=Math.atan2(dy,dx);d=0;}}
+    heat[Math.floor(a.pos.y/GC)*GW+Math.floor(a.pos.x/GC)]+=dt;return;}
+  if(a.timer>0){a.timer-=dt;if(a.timer<=0)dwellDone(a);}}
+
+/* ============ sinyal & gangguan ============ */
+const incidents=[];let incNo=1,handled=0,nextInc=0;
+const incPos=i=>i.agent?i.agent.pos:i;
+function addInc(o){const i=Object.assign({id:incNo++,t0:t,state:'open',tRes:0,sev:'warn'},o);incidents.unshift(i);return i;}
+function setBlock(ax,seg,v){for(const b of bays)if(b.ax===ax&&b.seg===seg)b.blocked=v;}
+function spawnInc(type){
+  type=type||pick(['block','block','stall','stall','stall','late','late',...(coldDrift?[]:['temp']),...(jam?[]:['jam'])]);
+  if(type==='block'){const ax=pick([...RES_AISLES,...FWD_AISLES]),seg=ri(0,1);if(incidents.some(i=>i.type==='block'&&i.ax===ax&&i.seg===seg))return;
+    setBlock(ax,seg,true);const z=ax<140?'R':'P',n=(z==='R'?RES_AISLES:FWD_AISLES).indexOf(ax)+1;
+    addInc({type,sev:'warn',title:'Lorong terhalang, palet jatuh',where:`Lorong ${z}${pad(n)} · bay ${seg?'17–32':'01–16'}`,x:ax,y:seg?104:46,ax,seg,
+      note:'32 lokasi di segmen ini ditahan dari putaway, replenishment, dan pick sampai lorong bersih.'});}
+  else if(type==='stall'){const c=agents.filter(a=>a.state==='toSrc'||a.state==='toDst');if(!c.length)return;const a=pick(c);a.prev=a.state;a.state='fault';
+    addInc({type,sev:a.type==='F'?'crit':'warn',title:`${a.id} berhenti di tengah rute`,where:a.type==='F'?'Forklift · sensor garpu':'AMR · lidar terhalang',agent:a,
+      note:'Unit berhenti dengan muatan. Tugasnya tetap terkunci sampai unit dipulihkan.'});}
+  else if(type==='temp'){coldDrift=true;addInc({type,sev:'warn',title:'Suhu ruang dingin naik',where:'Rantai dingin · K07–K08',x:128,y:46,
+    note:'Batas produk 2–8 °C. Pintu cepat diduga tertahan terbuka.'});}
+  else if(type==='jam'){jam=true;addInc({type,sev:'crit',title:'Konveyor sortir macet',where:'Sorter utama · titik gabung',x:228,y:75,
+    note:'Semua stasiun kemas berhenti mengeluarkan paket. Antrean tote akan menumpuk di hulu.'});}
+  else if(type==='late'){const c=inDocks.filter(d=>d.next.eta>t+180&&!incidents.some(i=>i.truck===d.next));if(!c.length)return;const d=pick(c),m=ri(10,25);d.next.eta+=m*60;
+    addInc({type,sev:'info',title:`${d.next.id} terlambat ${m} menit`,where:`${d.id} · ${d.next.carrier}`,x:BX0,y:d.y,truck:d.next,dock:d,auto:true,
+      note:'Slot dock digeser. Tidak perlu tindakan, sinyal hilang saat truk merapat.'});}
+}
+function slotInsight(){if(incidents.some(i=>i.type==='slot'))return;let best=null;
+  for(const b of fwdBays)if(b.ax<=159&&b.vel>3.5&&(!best||b.vel>best.vel))best=b;if(!best)return;
+  addInc({type:'slot',sev:'info',title:`Saran re-slot ${best.sku.name}`,where:`${best.code} → zona emas P05`,x:best.ax,y:best.cy,bay:best,fixLabel:'Terapkan',
+    note:'Barang laku ini disimpan di lorong pick terjauh. Tukar dengan lokasi paling sepi di lorong terdekat stasiun kemas.'});}
+function resolve(i){handled++;incidents.splice(incidents.indexOf(i),1);
+  if(i.type==='block')setBlock(i.ax,i.seg,false);
+  else if(i.type==='stall'){i.agent.state=i.agent.prev;}
+  else if(i.type==='temp')coldDrift=false;
+  else if(i.type==='jam')jam=false;
+  else if(i.type==='slot'){const a=i.bay;let b=null;for(const c of fwdBays)if(c.ax>=179&&!c.blocked&&c!==a&&(!b||c.vel<b.vel))b=c;
+    if(b){for(const k of['sku','fill','vel','last']){const x=a[k];a[k]=b[k];b[k]=x;}a.sku.pf=a;b.sku.pf=b;a.fill=Math.max(a.fill,a.resv);b.fill=Math.max(b.fill,b.resv);}}
+  if(sel&&sel.k==='inc'&&sel.o===i)sel=null;}
+function handle(i){if(i.state!=='open')return;i.state='handling';i.tRes=t+(i.type==='slot'?20:i.type==='jam'?150:90);}
+function stepInc(){
+  for(const i of[...incidents]){
+    if(i.state==='handling'&&t>=i.tRes)resolve(i);
+    else if(i.type==='late'&&i.dock.cur===i.truck)resolve(i);
+    else if(i.state==='open'&&!i.auto&&i.type!=='slot'&&t-i.t0>900)handle(i); // 15 menit tanpa respons: supervisor shift mengambil alih
+    else if(i.type==='temp')i.sev=coldT>8?'crit':'warn';}
+  coldT+=coldDrift?.012:(4.2-coldT)*.01+rnd(-.01,.01);coldT=Math.min(coldT,11.5);
+  if(t>=nextInc){nextInc=t+rnd(200,460);if(live&&incidents.length<5)spawnInc();}}
+
+/* ============ loop simulasi ============ */
+const occ=()=>{let f=0;for(const b of resBays)f+=b.fill;return f/(resBays.length*6);};
+const timers={};const every=(k,p)=>{if(t>=(timers[k]||0)){timers[k]=t+p;return true;}return false;};
+const hist={uph:[],wip:[],cyc:[],d2s:[],occ:[],sla:[]};let live=false,nextWave=1800;
+const metrics=()=>({uph:rate.pick.perHour(t),wip:openOrders,cyc:avg(cyc),d2s:avg(d2s),occ:occ()*100,sla:slaHits.length?avg(slaHits)*100:100});
+function step(dt){t+=dt;stepOrders(dt);
+  if(t>=nextWave){nextWave+=1800;for(let i=0;i<24;i++)newOrder();}
+  for(const a of agents)stepAgent(a,dt);
+  stepStations(dt);stepParcels(dt);
+  if(every('a',1)){assign();stepDocks();stepInc();}
+  if(every('r',5))repScan();
+  if(every('d',10)){const k=Math.pow(.5,10/1800),h=Math.pow(.5,10/480);for(const b of bays)b.vel*=k;for(let i=0;i<heat.length;i++)heat[i]*=h;}
+  if(every('s',60)){const m=metrics();for(const k in hist)keep(hist[k],m[k],90);}
+  if(every('i',600)&&live)slotInsight();}
+// pemanasan: 40 menit simulasi supaya layar pertama sudah berupa gudang yang sedang bekerja
+outDocks.forEach((d,i)=>{d.nextAt=i*240;});
+for(let i=0;i<2400;i++)step(1);
+live=true;spawnInc('stall');spawnInc('block');slotInsight();nextInc=t+240;
+
+/* ============ tema → kanvas ============ */
+let T={},R={};
+const hex=c=>{c=c.trim();if(c.length===4)c='#'+[1,2,3].map(i=>c[i]+c[i]).join('');return[1,3,5].map(i=>parseInt(c.slice(i,i+2),16));};
+function ramp(a,b,c){const A=hex(a),B=hex(b),C=hex(c),o=[];for(let i=0;i<=32;i++){const u=i/32,p=u<.5?A:B,q=u<.5?B:C,v=u<.5?u*2:u*2-1;
+  o.push(`rgb(${p.map((x,j)=>Math.round(x+(q[j]-x)*v)).join(',')})`);}return o;}
+function readTheme(){const cs=getComputedStyle(document.documentElement);
+  for(const k of['bg','panel','panel2','line','fg','muted','faint','floor','floor2','empty','mark','ok','warn','crit','info','fork','amr','parcel','cold','fill0','fill1','fill2','heat0','heat1','heat2','age0','age1','age2'])T[k]=cs.getPropertyValue('--'+k).trim();
+  R={isi:ramp(T.fill0,T.fill1,T.fill2),laju:ramp(T.heat0,T.heat1,T.heat2),umur:ramp(T.age0,T.age1,T.age2)};R.lalu=R.laju;}
+readTheme();
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change',readTheme);
+new MutationObserver(readTheme).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
+
+/* ============ kamera & kanvas ============ */
+const cv=$('cv'),ctx=cv.getContext('2d'),mapEl=$('map'),tip=$('tip');
+const cam={z:1,cx:W/2,cy:H/2},camT={z:1,cx:W/2,cy:H/2};
+let s=1,ox=0,oy=0,cw=0,ch=0,lens='isi',sel=null,hov=null,follow=null,searchSet=null;
+const focus=(x,y,z=2.6)=>{camT.cx=x;camT.cy=y;camT.z=Math.max(camT.z,z);};
+const w2s=(x,y)=>[x*s+ox,y*s+oy],s2w=(px,py)=>({x:(px-ox)/s,y:(py-oy)/s});
+function lensVal(b){if(lens==='isi')return b.fill/b.cap;if(lens==='laju')return Math.min(1,b.vel/6);if(lens==='umur')return Math.min(1,(t-b.last)/86400/30);return 0;}
+function txt(str,wx,wy,size,color,align='center',font='600 SIZEpx "Barlow Condensed",sans-serif'){const[x,y]=w2s(wx,wy);
+  ctx.font=font.replace('SIZE',size);ctx.fillStyle=color;ctx.textAlign=align;ctx.textBaseline='middle';ctx.fillText(str,x,y);}
+function drawTruck(d,c){const out=d.dir==='out',p=clamp((t-(c.state==='in'?c.tArr:c.tOut))/45,0,1),off=c.state==='in'?(1-p)*34:c.state==='out'?p*34:0;
+  const x0=out?BX1+1.5+off:BX0-17.5-off,frac=out?c.load/c.cap:(c.state==='dock'?c.onboard/c.n:c.state==='in'?1:0);
+  ctx.fillStyle=T.panel2;ctx.strokeStyle=T.muted;ctx.lineWidth=Math.max(.2,1/s);ctx.fillRect(x0,d.y-1.9,16,3.8);
+  ctx.fillStyle=out?T.mark:T.amr;ctx.globalAlpha=.75;const fw=15.2*frac;ctx.fillRect(out?x0+.4:x0+15.6-fw,d.y-1.5,fw,3);ctx.globalAlpha=1;
+  ctx.strokeRect(x0,d.y-1.9,16,3.8);ctx.fillStyle=T.muted;ctx.fillRect(out?x0+16.4:x0-3.4,d.y-1.6,3,3.2);}
+function draw(){
+  const r=mapEl.getBoundingClientRect(),dpr=Math.min(2,window.devicePixelRatio||1);
+  if(r.width!==cw||r.height!==ch||cv.width!==Math.round(r.width*dpr)){cw=r.width;ch=r.height;cv.width=Math.round(cw*dpr);cv.height=Math.round(ch*dpr);}
+  if(follow){camT.cx=follow.pos.x;camT.cy=follow.pos.y;}
+  cam.z+=(camT.z-cam.z)*.14;cam.cx+=(camT.cx-cam.cx)*.14;cam.cy+=(camT.cy-cam.cy)*.14;
+  s=Math.min(cw/W,ch/H)*cam.z;ox=cw/2-cam.cx*s;oy=ch/2-cam.cy*s;const px=1/s;
+  ctx.setTransform(dpr,0,0,dpr,0,0);ctx.fillStyle=T.bg;ctx.fillRect(0,0,cw,ch);
+  ctx.setTransform(dpr*s,0,0,dpr*s,dpr*ox,dpr*oy);
+  // lantai + zona
+  ctx.fillStyle=T.floor;ctx.fillRect(BX0,BY0,BX1-BX0,BY1-BY0);
+  ctx.fillStyle=T.floor2;ctx.fillRect(BX0,BY0,32,BY1-BY0);ctx.fillRect(196,BY0,BX1-196,BY1-BY0);
+  ctx.strokeStyle=T.mark;ctx.globalAlpha=.4;ctx.lineWidth=Math.max(.22,px);ctx.setLineDash([2.4,2.4]);ctx.beginPath();
+  for(const y of[13,21,71,79,129,137]){ctx.moveTo(56,y);ctx.lineTo(196,y);}ctx.stroke();ctx.setLineDash([]);ctx.globalAlpha=1;
+  // lalu lintas
+  if(lens==='lalu')for(let i=0;i<heat.length;i++){const v=heat[i];if(v<1.5)continue;ctx.globalAlpha=.75;ctx.fillStyle=R.laju[Math.min(32,Math.round(v/45*32))];
+    ctx.fillRect((i%GW)*GC,Math.floor(i/GW)*GC,GC,GC);}ctx.globalAlpha=1;
+  // rak
+  for(const b of bays){const hit=!searchSet||searchSet.has(b);ctx.globalAlpha=hit?1:.18;
+    ctx.fillStyle=lens==='lalu'?T.fill0:(b.fill===0&&lens==='isi'?T.empty:R[lens][Math.round(lensVal(b)*32)]);
+    ctx.fillRect(b.x+.14,b.y+.14,2.22,2.72);
+    if(b.zone==='P'&&b.fill===0){ctx.strokeStyle=T.crit;ctx.lineWidth=Math.max(.3,1.2*px);ctx.strokeRect(b.x+.3,b.y+.3,1.9,2.4);}
+    if(searchSet&&hit){ctx.strokeStyle=T.mark;ctx.lineWidth=Math.max(.35,1.5*px);ctx.strokeRect(b.x,b.y,2.5,3);}}
+  ctx.globalAlpha=1;
+  // ruang dingin
+  ctx.strokeStyle=coldT>8?T.crit:T.cold;ctx.lineWidth=Math.max(.4,1.5*px);ctx.strokeRect(117.6,21.2,20.8,49.6);
+  // lorong terhalang
+  for(const i of incidents)if(i.type==='block'){const y0=i.seg?80:22;ctx.fillStyle=T.warn;ctx.globalAlpha=.28;ctx.fillRect(i.ax-2.5,y0,5,48);ctx.globalAlpha=1;
+    ctx.strokeStyle=T.warn;ctx.lineWidth=Math.max(.3,px);ctx.beginPath();for(let y=y0;y<y0+48;y+=4){ctx.moveTo(i.ax-2.5,y+4);ctx.lineTo(i.ax+2.5,y);}ctx.stroke();}
+  // konveyor
+  ctx.strokeStyle=jam?T.crit:T.faint;ctx.lineWidth=Math.max(.9,1.6*px);ctx.lineJoin='round';ctx.beginPath();
+  for(const y of YS){ctx.moveTo(208,y);ctx.lineTo(216,y);ctx.moveTo(228,y);ctx.lineTo(254,y);}
+  ctx.moveTo(216,YS[0]);ctx.lineTo(216,YS[5]);ctx.moveTo(216,75);ctx.lineTo(228,75);ctx.moveTo(228,YS[0]);ctx.lineTo(228,YS[5]);ctx.stroke();
+  ctx.fillStyle=T.parcel;const pr=Math.max(.55,1.6*px);for(const p of parcels)ctx.fillRect(p.x-pr,p.y-pr,pr*2,pr*2);
+  for(const d of outDocks){const n=Math.min(d.buf,12);ctx.fillStyle=T.warn;for(let k=0;k<n;k++)ctx.fillRect(252-k*1.6,d.y+1.4,1.1,1.1);}
+  // stasiun kemas
+  for(const st of stations){const q=st.queue.length;ctx.fillStyle=T.panel2;ctx.strokeStyle=q>6?T.warn:T.muted;ctx.lineWidth=Math.max(.25,1.2*px);
+    ctx.fillRect(202,st.y-3,6,6);ctx.strokeRect(202,st.y-3,6,6);
+    ctx.fillStyle=q>6?T.warn:T.amr;for(let k=0;k<Math.min(q,8);k++)ctx.fillRect(202.7+(k%4)*1.25,st.y-2.3+Math.floor(k/4)*1.3,.9,.9);
+    if(st.busy){ctx.fillStyle=T.ok;ctx.fillRect(202.6,st.y+1.6,4.8*st.prog/26,.8);}}
+  // pengisian daya
+  for(const c of chargers){ctx.fillStyle=c.by&&c.by.state==='chg'?T.ok:T.line;ctx.fillRect(c.x-.9,139,1.8,.8);}
+  // dinding + pintu dock + truk
+  ctx.strokeStyle=T.muted;ctx.lineWidth=Math.max(.5,1.5*px);ctx.strokeRect(BX0,BY0,BX1-BX0,BY1-BY0);
+  for(const d of[...inDocks,...outDocks]){const x=d.dir==='in'?BX0:BX1;ctx.fillStyle=d.cur&&d.cur.state==='dock'?T.mark:T.faint;ctx.fillRect(x-.7,d.y-2.4,1.4,4.8);
+    if(d.cur)drawTruck(d,d.cur);}
+  // armada
+  for(const a of agents){const col=a.type==='F'?T.fork:T.amr,rr=Math.max(a.type==='F'?1.45:1.1,4.2*px);
+    if(a.path){const l=a.trail[a.trail.length-1];if(!l||Math.hypot(l.x-a.pos.x,l.y-a.pos.y)>1.6){a.trail.push({x:a.pos.x,y:a.pos.y});if(a.trail.length>9)a.trail.shift();}}
+    else if(a.trail.length)a.trail.shift();
+    ctx.strokeStyle=col;ctx.lineWidth=rr*.55;ctx.lineCap='round';
+    for(let i=1;i<a.trail.length;i++){ctx.globalAlpha=i/a.trail.length*.4;ctx.beginPath();ctx.moveTo(a.trail[i-1].x,a.trail[i-1].y);ctx.lineTo(a.trail[i].x,a.trail[i].y);ctx.stroke();}
+    ctx.globalAlpha=a.state==='idle'||a.state==='chg'?.55:1;ctx.lineCap='butt';
+    ctx.save();ctx.translate(a.pos.x,a.pos.y);ctx.rotate(a.hdg);ctx.fillStyle=col;
+    if(a.type==='F'){ctx.fillRect(-rr*1.1,-rr*.75,rr*2.1,rr*1.5);ctx.lineWidth=rr*.22;ctx.beginPath();ctx.moveTo(rr,-rr*.42);ctx.lineTo(rr*1.9,-rr*.42);ctx.moveTo(rr,rr*.42);ctx.lineTo(rr*1.9,rr*.42);ctx.stroke();
+      if(a.carry){ctx.fillStyle=T.parcel;ctx.fillRect(rr*1.05,-rr*.62,rr*.95,rr*1.24);}}
+    else{ctx.beginPath();ctx.arc(0,0,rr,0,6.283);ctx.fill();if(a.carry){ctx.fillStyle=T.parcel;ctx.fillRect(-rr*.48,-rr*.48,rr*.96,rr*.96);}}
+    ctx.restore();ctx.globalAlpha=1;
+    if(a.state==='chg'){ctx.strokeStyle=T.ok;ctx.lineWidth=Math.max(.25,1.2*px);ctx.beginPath();ctx.arc(a.pos.x,a.pos.y,rr*1.5,0,6.283);ctx.stroke();}}
+  // gangguan
+  const pulse=(performance.now()%1400)/1400;
+  for(const i of incidents){const p=incPos(i);if(p.x==null)continue;const col=i.state==='handling'?T.ok:T[i.sev==='crit'?'crit':i.sev==='warn'?'warn':'info'],base=Math.max(2.2,7*px);
+    ctx.strokeStyle=col;ctx.lineWidth=Math.max(.35,1.6*px);ctx.beginPath();ctx.arc(p.x,p.y,base,0,6.283);ctx.stroke();
+    ctx.globalAlpha=1-pulse;ctx.beginPath();ctx.arc(p.x,p.y,base*(1+pulse*1.6),0,6.283);ctx.stroke();ctx.globalAlpha=1;}
+  // seleksi
+  const mark=o=>{ctx.strokeStyle=T.mark;ctx.lineWidth=Math.max(.4,2*px);};
+  for(const[q,strong]of[[hov,0],[sel,1]]){if(!q)continue;mark();if(!strong){ctx.strokeStyle=T.fg;ctx.lineWidth=Math.max(.3,1.2*px);}
+    const o=q.o;
+    if(q.k==='bay')ctx.strokeRect(o.x,o.y,2.5,3);
+    else if(q.k==='agent'){const rr=Math.max(2.6,8*px);ctx.beginPath();ctx.arc(o.pos.x,o.pos.y,rr,0,6.283);ctx.stroke();
+      if(strong&&o.path){ctx.setLineDash([1.5,1.5]);ctx.beginPath();ctx.moveTo(o.pos.x,o.pos.y);for(let i=o.pi;i<o.path.length;i++)ctx.lineTo(o.path[i].x,o.path[i].y);ctx.stroke();ctx.setLineDash([]);
+        const e=o.path[o.path.length-1];ctx.fillStyle=T.mark;ctx.fillRect(e.x-1,e.y-1,2,2);}}
+    else if(q.k==='station')ctx.strokeRect(201.4,o.y-3.6,7.2,7.2);
+    else if(q.k==='dock')ctx.strokeRect(o.dir==='in'?BX0-18.5:BX1-1.5,o.y-3,20,6);}
+  // label (ruang layar)
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  const fs=clamp(s*3.1,9,22);
+  if(lens!=='lalu'||true){ctx.globalAlpha=.55;txt('PENERIMAAN',40,17,fs,T.muted);txt('CADANGAN',93,17,fs,T.muted);txt('PICK FACE',169,17,fs,T.muted);txt('KEMAS · SORTIR',226,17,fs,T.muted);ctx.globalAlpha=1;}
+  txt(`RANTAI DINGIN ${nf(coldT,1)} °C`,128,75,clamp(s*2.6,9,18),coldT>8?T.crit:T.cold);
+  if(s>=2.4){ctx.globalAlpha=.7;txt('PENGISIAN DAYA',40,133,clamp(s*2.2,8,14),T.muted);ctx.globalAlpha=1;}
+  if(s>=3.4){const f='500 SIZEpx "IBM Plex Mono",monospace',z=clamp(s*1.7,8,13);
+    RES_AISLES.forEach((x,i)=>txt((i>=6?'K/R':'R')+pad(i+1),x,131,z,T.muted,'center',f));FWD_AISLES.forEach((x,i)=>txt('P'+pad(i+1),x,131,z,T.muted,'center',f));
+    for(const d of inDocks)txt(d.id,BX0+3.2,d.y-3.6,z,T.muted,'center',f);for(const d of outDocks)txt(d.id,BX1-3.2,d.y-3.9,z,T.muted,'center',f);
+    for(const st of stations)txt(st.id,205,st.y-4.3,z,T.muted,'center',f);}
+  if(s>=5){const f='500 SIZEpx "IBM Plex Mono",monospace';for(const a of agents)txt(a.short,a.pos.x,a.pos.y-2.6,10,T.fg,'center',f);}
+}
+
+/* ============ interaksi peta ============ */
+function hitTest(wx,wy){const tol=Math.max(2.2,9/s);
+  for(const i of incidents){const p=incPos(i);if(p.x!=null&&Math.hypot(p.x-wx,p.y-wy)<tol)return{k:'inc',o:i};}
+  let ba=null,bd=tol;for(const a of agents){const d=Math.hypot(a.pos.x-wx,a.pos.y-wy);if(d<bd){bd=d;ba=a;}}if(ba)return{k:'agent',o:ba};
+  for(const st of stations)if(wx>=202&&wx<=208&&Math.abs(wy-st.y)<=3)return{k:'station',o:st};
+  for(const d of inDocks)if(wx<BX0+2&&Math.abs(wy-d.y)<3)return{k:'dock',o:d};
+  for(const d of outDocks)if(wx>BX1-2&&Math.abs(wy-d.y)<3)return{k:'dock',o:d};
+  for(const b of bays)if(wx>=b.x&&wx<b.x+2.5&&wy>=b.y&&wy<b.y+3)return{k:'bay',o:b};return null;}
+function tipText(h){const o=h.o;
+  if(h.k==='bay')return`<b>${o.code}</b> · ${o.sku?o.sku.name:'kosong'} · ${o.fill}/${o.cap} ${o.zone==='P'?'unit':'palet'}${o.blocked?' · ditahan':''}`;
+  if(h.k==='agent')return`<b>${o.id}</b> · ${STATE[o.state]} · ${Math.round(o.batt)}%`;
+  if(h.k==='station')return`<b>${o.id}</b> · antre ${o.queue.length} tote`;
+  if(h.k==='dock')return`<b>${o.id}</b> · ${o.cur?o.cur.id+' · '+o.cur.carrier:'kosong'}`;
+  return`<b>${esc(o.title)}</b>`;}
+const ptrs=new Map();let drag=null,pinch=0;
+const local=e=>{const r=cv.getBoundingClientRect();return[e.clientX-r.left,e.clientY-r.top];};
+function zoomAt(px,py,f){const w=s2w(px,py),z=clamp(camT.z*f,1,9),s2=Math.min(cw/W,ch/H)*z;camT.z=cam.z=z;
+  camT.cx=cam.cx=clamp(w.x-(px-cw/2)/s2,0,W);camT.cy=cam.cy=clamp(w.y-(py-ch/2)/s2,0,H);}
+cv.addEventListener('pointerdown',e=>{cv.setPointerCapture(e.pointerId);const[x,y]=local(e);ptrs.set(e.pointerId,[x,y]);
+  if(ptrs.size===1)drag={x,y,moved:false};else if(ptrs.size===2){const[a,b]=[...ptrs.values()];pinch=Math.hypot(a[0]-b[0],a[1]-b[1]);drag=null;}});
+cv.addEventListener('pointermove',e=>{const[x,y]=local(e);
+  if(ptrs.has(e.pointerId)){ptrs.set(e.pointerId,[x,y]);
+    if(ptrs.size===2){const[a,b]=[...ptrs.values()],d=Math.hypot(a[0]-b[0],a[1]-b[1]);if(pinch)zoomAt((a[0]+b[0])/2,(a[1]+b[1])/2,d/pinch);pinch=d;follow=null;return;}
+    if(drag){const dx=x-drag.x,dy=y-drag.y;if(!drag.moved&&Math.hypot(dx,dy)<5)return;drag.moved=true;follow=null;cv.classList.add('drag');
+      camT.cx=cam.cx=clamp(cam.cx-dx/s,0,W);camT.cy=cam.cy=clamp(cam.cy-dy/s,0,H);drag.x=x;drag.y=y;tip.hidden=true;return;}}
+  const w=s2w(x,y);hov=hitTest(w.x,w.y);
+  if(hov&&e.pointerType==='mouse'){tip.innerHTML=tipText(hov);tip.hidden=false;const tw=tip.offsetWidth;tip.style.left=clamp(x+14,4,cw-tw-4)+'px';tip.style.top=Math.max(4,y-34)+'px';}else tip.hidden=true;});
+const up=e=>{const[x,y]=local(e);ptrs.delete(e.pointerId);pinch=0;cv.classList.remove('drag');
+  if(drag&&!drag.moved&&e.type==='pointerup'){const w=s2w(x,y);select(hitTest(w.x,w.y));}drag=null;};
+cv.addEventListener('pointerup',up);cv.addEventListener('pointercancel',up);
+cv.addEventListener('pointerleave',()=>{hov=null;tip.hidden=true;});
+cv.addEventListener('wheel',e=>{if(!e.ctrlKey&&!e.metaKey)return;e.preventDefault();const[x,y]=local(e);follow=null;zoomAt(x,y,Math.exp(-e.deltaY*.01));},{passive:false});
+$('zin').onclick=()=>{camT.z=clamp(camT.z*1.5,1,9);};
+$('zout').onclick=()=>{camT.z=clamp(camT.z/1.5,1,9);};
+$('zfit').onclick=()=>{follow=null;camT.z=1;camT.cx=W/2;camT.cy=H/2;};
+function select(h){sel=h;follow=null;if(h&&h.k==='inc')flash(h.o.id);renderInsp(true);renderFleet();}
+let flashId=0;function flash(id){flashId=id;renderSigs(true);const el=$('sigs').querySelector(`[data-id="${id}"]`);if(el)el.scrollIntoView({block:'nearest'});setTimeout(()=>{flashId=0;renderSigs(true);},1600);}
+
+/* ============ panel: vital ============ */
+const VIT=[['uph','Laju pick','lini/jam',0],['wip','Order berjalan','rilis → muat',0],['cyc','Siklus order','menit',1],['d2s','Dock-to-stock','menit',1],['occ','Okupansi cadangan','%',1],['sla','Tepat janji 20 mnt','%',1]];
+$('vitals').innerHTML=VIT.map(([k,l,u])=>`<div class="vital" id="v-${k}"><span class="eyebrow">${l}</span><div class="v"><b>–</b><span>${u}</span></div><svg viewBox="0 0 100 26" preserveAspectRatio="none" aria-hidden="true"><path class="ar"/><path class="ln"/></svg></div>`).join('');
+function renderVitals(){const m=metrics();for(const[k,,,d]of VIT){const el=$('v-'+k),a=hist[k];el.querySelector('b').textContent=nf(m[k],d);
+  el.classList.toggle('bad',(k==='sla'&&m.sla<85)||(k==='cyc'&&m.cyc>20)||(k==='occ'&&m.occ>92));
+  if(a.length>1){const lo=Math.min(...a),hi=Math.max(...a),sp=hi-lo||1;const pts=a.map((v,i)=>[(i/(a.length-1))*100,23-((v-lo)/sp)*20]);
+    const ln='M'+pts.map(p=>p[0].toFixed(1)+' '+p[1].toFixed(1)).join('L');el.querySelector('.ln').setAttribute('d',ln);el.querySelector('.ar').setAttribute('d',ln+'L100 26L0 26Z');}}
+  $('clock').textContent=clock(t);const h=Math.floor((6*3600+t)%86400/3600);$('shift').textContent=h>=6&&h<14?'Shift 1 · 06–14':h>=14&&h<22?'Shift 2 · 14–22':'Shift 3 · 22–06';}
+
+/* ============ panel: aliran ============ */
+const STG=[['Bongkar','palet di truk'],['Cadangan','palet tersimpan'],['Pick face','unit siap ambil'],['Picking','lini terbuka'],['Kemas','tote antre'],['Sortir','paket di konveyor'],['Muat','paket di truk']];
+const LNK=[['put','putaway'],['rep','replenish'],['line','rilis lini'],['pick','pick'],['parcel','paket'],['load','muat']];
+$('flow').innerHTML=STG.map(([n,u],i)=>`<div class="stage" id="sg${i}"><span class="sn">${n}</span><b>0</b><span class="su">${u}</span><span class="lvl"><i></i></span></div>`+(i<6?`<div class="link" id="lk${i}"><span class="lr">0/j</span><span class="pipe"></span><span>${LNK[i][1]}</span></div>`:'')).join('');
+function renderFlow(){
+  const onTr=inDocks.reduce((n,d)=>n+(d.cur&&d.cur.state==='dock'?d.cur.onboard:0),0),resP=resBays.reduce((n,b)=>n+b.fill,0),fw=fwdBays.reduce((n,b)=>n+b.fill,0),
+    open=pTasks.length+agents.filter(a=>a.type==='A'&&a.task).length,tote=stations.reduce((n,x)=>n+x.queue.length+(x.busy?1:0),0),
+    ld=outDocks.reduce((n,d)=>n+(d.cur?d.cur.load:0)+d.buf,0);
+  const v=[[onTr,115,'q'],[resP,resBays.length*6,'hi'],[fw,fwdBays.length*36,'lo'],[open,90,'q'],[tote,42,'q'],[parcels.length,36,'q'],[ld,6*48,'n']];
+  v.forEach(([n,cap,mode],i)=>{const el=$('sg'+i),f=n/cap;el.querySelector('b').textContent=nf(n);el.querySelector('.lvl i').style.width=clamp(f*100,0,100)+'%';
+    const st=mode==='q'?(f>=.9?'crit':f>=.65?'warn':''):mode==='hi'?(f>=.92?'warn':''):mode==='lo'?(f<=.4?'warn':''):'';
+    el.className='stage '+(i===5&&jam?'crit':st);});
+  LNK.forEach(([k],i)=>{const r=rate[k].perHour(t),el=$('lk'+i);el.querySelector('.lr').textContent=nf(r)+'/j';el.querySelector('.pipe').style.setProperty('--w',clamp(1.5+r/110,1.5,9).toFixed(1)+'px');});}
+
+/* ============ panel: jadwal dock ============ */
+function renderDocks(){const t0=t-1200,span=5400,pos=x=>((x-t0)/span*100);let h='<div class="ticks">';
+  const base=6*3600+t0;for(let q=Math.ceil(base/900)*900;q<base+span;q+=900)h+=`<span style="left:${((q-base)/span*100).toFixed(2)}%">${hm(q-6*3600)}</span>`;
+  h+=`</div><div class="now" style="left:calc(116px + (100% - 116px) * ${(1200/span).toFixed(4)})"></div>`;
+  const bar=(d,a,b,cls,label,fill)=>{const l=Math.max(0,pos(a)),r=Math.min(102,pos(b));if(r<=0||l>=100||r-l<.3)return'';
+    return`<button class="bar ${cls}" data-dock="${d.id}" style="left:${l.toFixed(2)}%;width:${(r-l).toFixed(2)}%" title="${label}">${fill!=null?`<i style="width:${(fill*100).toFixed(0)}%"></i>`:''}<em>${label}</em></button>`;};
+  for(const d of inDocks){h+=`<div class="row"><span><b>${d.id}</b>masuk</span><div class="trk">`;
+    for(const c of d.hist)h+=bar(d,c.tArr,c.tOut+45,'',c.id,1);
+    const c=d.cur;if(c)h+=bar(d,c.tArr,c.state==='out'?c.tOut+45:Math.max(t+60,t+c.onboard*48),'',c.id,c.state==='in'?0:1-c.onboard/c.n);
+    const n=d.next,late=n.eta>n.plan;h+=bar(d,n.eta,n.eta+1320,'plan'+(late?' late':''),n.id+(late?' · telat':''),null);h+='</div></div>';}
+  h+='<div class="gap"></div>';
+  for(const d of outDocks){h+=`<div class="row"><span><b>${d.id}</b>${d.route.split(' ')[0]}</span><div class="trk">`;
+    for(const c of d.hist)h+=bar(d,c.tArr,c.tOut+45,'out',c.id,c.load/c.cap);
+    const c=d.cur;if(c)h+=bar(d,c.tArr,c.state==='out'?c.tOut+45:Math.max(c.cutoff,t+30),'out'+(c.cutoff-t<600&&c.load/c.cap<.5&&c.state==='dock'?' late':''),`${c.id} · ${c.load}/${c.cap}`,c.load/c.cap);
+    else h+=bar(d,d.nextAt,d.nextAt+2700,'plan','berikutnya',null);h+='</div></div>';}
+  setHTML($('tl'),h);}
+
+/* ============ panel: armada ============ */
+const C=2*Math.PI*17;
+$('fleet').innerHTML=agents.map((a,i)=>`<button class="unit ${a.type}" data-i="${i}" aria-label="${a.id}"><svg viewBox="0 0 44 44"><circle class="tr" cx="22" cy="22" r="17"/><circle class="bt" cx="22" cy="22" r="17" stroke-dasharray="${C}"/><circle class="core" cx="22" cy="22" r="13"/><text x="22" y="22">${a.short}</text></svg></button>`).join('');
+const unitEls=[...$('fleet').children];
+function renderFleet(){const n={work:0,idle:0,chg:0,fault:0};
+  agents.forEach((a,i)=>{const el=unitEls[i],g=a.state==='fault'?'fault':a.state==='chg'||a.state==='toChg'?'chg':a.state==='idle'?'idle':'work';n[g]++;
+    el.className=`unit ${a.type} ${g}${sel&&sel.o===a?' sel':''}`;el.querySelector('.bt').setAttribute('stroke-dashoffset',(C*(1-a.batt/100)).toFixed(1));
+    el.title=`${a.id} · ${STATE[a.state]} · ${Math.round(a.batt)}%`;});
+  const K=[['work','Bekerja','--amr'],['idle','Menunggu','--faint'],['chg','Isi daya','--ok'],['fault','Gangguan','--crit']];
+  $('fstack').innerHTML=K.map(([k,,c])=>`<i style="width:${n[k]/agents.length*100}%;background:var(${c})"></i>`).join('');
+  $('fkeys').innerHTML=K.map(([k,l,c])=>`<span><i style="background:var(${c})"></i>${l} <span class="num">${n[k]}</span></span>`).join('');}
+$('fleet').addEventListener('click',e=>{const b=e.target.closest('.unit');if(!b)return;const a=agents[+b.dataset.i];select({k:'agent',o:a});focus(a.pos.x,a.pos.y);follow=a;});
+
+/* ============ panel: sinyal ============ */
+let held=false;addEventListener('pointerdown',()=>held=true,true);addEventListener('pointerup',()=>held=false,true);addEventListener('pointercancel',()=>held=false,true);
+function setHTML(el,h,force){if(el._h===h||(held&&!force))return;el._h=h;el.innerHTML=h;}
+const SEV={crit:'KRITIS',warn:'WASPADA',info:'INFO'};
+function renderSigs(force){const h=incidents.map(i=>`<li class="sig ${i.sev}${flashId===i.id?' flash':''}" data-id="${i.id}"><span class="sev">${SEV[i.sev]}</span>
+  <div><b>${esc(i.title)}</b><span class="meta">${esc(i.where)} · ${Math.max(0,Math.floor((t-i.t0)/60))} mnt</span></div>
+  <div class="acts"><button class="btn" data-act="see">Lihat di peta</button>${i.auto?'':i.state==='handling'?`<span class="meta num">${i.type==='slot'?'Dijadwalkan':'Tim dikirim'} · ${mmss(i.tRes-t)}</span>`:`<button class="btn pri" data-act="fix">${i.fixLabel||'Kirim tim'}</button>`}</div></li>`).join('')
+  ||'<li class="empty">Tidak ada sinyal terbuka. Lantai berjalan normal.</li>';
+  setHTML($('sigs'),h,force);$('sigcount').textContent=`${incidents.length} terbuka · ${handled} selesai`;}
+$('sigs').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;const i=incidents.find(x=>x.id===+b.closest('.sig').dataset.id);if(!i)return;
+  if(b.dataset.act==='fix'){handle(i);renderSigs(true);}else{const p=incPos(i);focus(p.x,p.y);sel={k:'inc',o:i};follow=i.agent||null;renderInsp(true);mapEl.scrollIntoView({block:'nearest',behavior:'smooth'});}});
+$('spawn').onclick=()=>{const n=incidents.length;for(let k=0;k<6&&incidents.length===n;k++)spawnInc();renderSigs(true);if(incidents.length>n)flash(incidents[0].id);};
+
+/* ============ panel: inspektur ============ */
+const meter=(f,c='')=>`<div class="meter ${c}"><i style="width:${clamp(f*100,0,100).toFixed(0)}%"></i></div>`;
+const kv=rows=>`<dl class="kv">${rows.map(([a,b])=>`<dt>${a}</dt><dd>${b}</dd>`).join('')}</dl>`;
+function taskText(a){const k=a.task;if(!k)return'—';
+  if(k.kind==='put')return`Putaway ${k.sku.name}: ${k.dock.id} → ${k.dst.code}`;
+  if(k.kind==='rep')return`Replenish ${k.sku.name}: ${k.src.code} → ${k.dst.code}`;
+  return`Pick ${k.qty} × ${k.bay.sku.name}: ${k.bay.code} → ${k.st?k.st.id:'stasiun kemas'} (${k.order.id})`;}
+function renderInsp(force){$('unsel').hidden=!sel;let h;
+  if(!sel){const z=k=>{const a=bays.filter(b=>b.zone===k);return a.reduce((n,b)=>n+b.fill,0)/a.reduce((n,b)=>n+b.cap,0);};
+    h=`<span class="sub" style="margin:0">Klik rak, unit, truk, stasiun, atau sinyal di peta untuk melihat detailnya.</span>`+
+      ['R','K','P'].map(k=>{const f=z(k);return`<div class="zrow"><span>${ZONE[k]}</span>${meter(f,k==='P'&&f<.4?'w':f>.92?'w':'')}<span class="num">${nf(f*100)}%</span></div>`;}).join('')+
+      kv([['Suhu rantai dingin',`<span class="num">${nf(coldT,1)} °C</span>`],['Pick face kosong',`<span class="num">${fwdBays.filter(b=>b.fill===0).length}</span> lokasi`],['Lini gagal rilis (stok habis)',`<span class="num">${stockouts}</span>`],['Lokasi ditahan',`<span class="num">${bays.filter(b=>b.blocked).length}</span>`]]);}
+  else if(sel.k==='bay'){const b=sel.o,s=b.sku,P=b.zone==='P';
+    h=`<h3>${b.code}</h3><span class="sub">${ZONE[b.zone]} · lorong ${b.code.slice(0,3)} · sisi ${b.side<0?'kiri':'kanan'}${b.blocked?' · <span style="color:var(--warn)">ditahan</span>':''}</span>`+
+      (P?meter(b.fill/b.cap,b.fill<=12?'w':''):`<div class="cells">${Array.from({length:6},(_,i)=>`<i class="${i<b.fill?'on':''}"></i>`).join('')}</div>`)+
+      kv([['SKU',s?`<span class="num">${s.name}</span> <span class="tag">Kelas ${s.cls}</span>${s.cold?' <span class="tag">Dingin</span>':''}`:'Kosong'],
+        ['Isi',`<span class="num">${b.fill} / ${b.cap}</span> ${P?'unit':'palet'}`],
+        P?['Sudah dipesan order',`<span class="num">${b.resv}</span> unit`]:['Palet dalam perjalanan',`<span class="num">${b.pend}</span> masuk · <span class="num">${b.resv}</span> keluar`],
+        ['Gerakan per 30 mnt',`<span class="num">${nf(b.vel,1)}</span>`],
+        ['Terakhir bergerak',t-b.last<3600?`${Math.max(0,Math.floor((t-b.last)/60))} mnt lalu`:t-b.last<86400?`${Math.floor((t-b.last)/3600)} jam lalu`:`${Math.floor((t-b.last)/86400)} hari lalu`],
+        ...(P?[['Replenishment',b.rep?'Sedang diantar':b.fill<=12?'<span style="color:var(--warn)">Stok cadangan tidak ada</span>':'Belum perlu']]:[])]);}
+  else if(sel.k==='agent'){const a=sel.o;
+    h=`<h3>${a.id}</h3><span class="sub">${a.type==='F'?'Forklift reach truck':'Robot AMR pembawa tote'} · ${STATE[a.state]}</span>${meter(a.batt/100,a.batt<20?'c':a.batt<40?'w':'g')}`+
+      kv([['Baterai',`<span class="num">${Math.round(a.batt)}%</span>`],['Tugas',esc(taskText(a))],['Muatan',a.carry?(a.type==='F'?'1 palet':'1 tote'):'Kosong'],
+        ['Sisa rute',a.path?`<span class="num">${nf(a.path.slice(a.pi).reduce((n,p,i,arr)=>n+man(i?arr[i-1]:a.pos,p),0))}</span> m`:'—']])+
+      `<div><button class="btn" data-act="follow">${follow===a?'Berhenti mengikuti':'Ikuti di peta'}</button></div>`;}
+  else if(sel.k==='station'){const x=sel.o;
+    h=`<h3>${x.id}</h3><span class="sub">Stasiun kemas · ${jam?'<span style="color:var(--crit)">tertahan, konveyor macet</span>':x.busy?'mengemas '+x.busy.id:'menunggu tote'}</span>${meter(x.queue.length/8,x.queue.length>6?'w':'')}`+
+      kv([['Tote antre',`<span class="num">${x.queue.length}</span>`],['AMR menuju ke sini',`<span class="num">${x.inb}</span>`],['Progres kemas',x.busy?`<span class="num">${Math.round(x.prog/26*100)}%</span>`:'—']]);}
+  else if(sel.k==='dock'){const d=sel.o,c=d.cur,IN=d.dir==='in';
+    h=`<h3>${d.id}</h3><span class="sub">${IN?'Dock masuk':'Dock keluar · rute '+d.route}</span>`;
+    if(c){const f=IN?(c.state==='in'?0:1-c.onboard/c.n):c.load/c.cap;h+=meter(f,IN?'':'y')+kv([[IN?'ASN':'Trip',`<span class="num">${c.id}</span>`],['Pengangkut',esc(c.carrier)],
+      ['Status',c.state==='in'?'Merapat':c.state==='out'?'Berangkat':IN?'Bongkar':'Muat'],
+      IN?['Palet dibongkar',`<span class="num">${c.state==='in'?0:c.n-c.onboard} / ${c.n}</span>`]:['Paket dimuat',`<span class="num">${c.load} / ${c.cap}</span>`],
+      IN?['Di dock sejak',hm(c.tArr)]:['Cut-off',`${hm(c.cutoff)} · <span class="num">${mmss(c.cutoff-t)}</span> lagi`]]);}
+    else h+=kv([['Status','Kosong'],IN?['Berikutnya',`<span class="num">${d.next.id}</span> · ETA ${hm(d.next.eta)}`]:['Truk berikutnya',`±${hm(d.nextAt)}`]]);
+    if(!IN)h+=kv([['Paket menunggu di lajur',`<span class="num">${d.buf}</span>`]]);else if(c)h+=kv([['Berikutnya',`<span class="num">${d.next.id}</span> · ETA ${hm(d.next.eta)}`]]);}
+  else{const i=sel.o;h=`<h3 style="font-family:var(--body);font-weight:600">${esc(i.title)}</h3><span class="sub">${esc(i.where)} · sejak ${hm(i.t0)}</span><span>${esc(i.note)}</span>`+
+    (i.auto?'':i.state==='handling'?`<span class="sub" style="margin:0">Sedang ditangani · <span class="num">${mmss(i.tRes-t)}</span></span>`:`<div><button class="btn pri" data-act="fix">${i.fixLabel||'Kirim tim'}</button></div>`);}
+  setHTML($('insp'),h,force);}
+$('insp').addEventListener('click',e=>{const b=e.target.closest('button');if(!b||!sel)return;
+  if(b.dataset.act==='follow'){follow=follow===sel.o?null:sel.o;if(follow)focus(follow.pos.x,follow.pos.y);}
+  else if(b.dataset.act==='fix'){handle(sel.o);renderSigs(true);}renderInsp(true);});
+$('unsel').onclick=()=>select(null);
+$('tl').addEventListener('click',e=>{const b=e.target.closest('.bar');if(!b)return;const d=[...inDocks,...outDocks].find(x=>x.id===b.dataset.dock);select({k:'dock',o:d});focus(d.dir==='in'?BX0+10:BX1-10,d.y,2.2);});
+
+/* ============ kontrol ============ */
+let speed=20;
+$('speed').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;speed=+b.dataset.s;for(const x of $('speed').children)x.setAttribute('aria-pressed',x===b);});
+const LEG={isi:['Kosong','Penuh','fill'],laju:['Diam','Sibuk','heat'],umur:['Baru bergerak','30+ hari diam','age'],lalu:['Sepi','Padat','heat']};
+function renderLegend(){const[a,b,k]=LEG[lens];$('legend').innerHTML=`<span class="k">${a}<span class="bar" style="background:linear-gradient(90deg,var(--${k}0),var(--${k}1),var(--${k}2))"></span>${b}</span>
+  <span class="k"><i style="background:var(--fork)"></i>Forklift</span><span class="k"><i style="background:var(--amr);border-radius:50%"></i>AMR</span><span class="k"><i style="background:var(--parcel);width:6px;height:6px"></i>Paket</span><span class="k">Ctrl + gulir untuk zoom</span>`;}
+$('lens').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;lens=b.dataset.l;for(const x of $('lens').children)x.setAttribute('aria-pressed',x===b);renderLegend();});
+renderLegend();
+const qEl=$('q');
+function doSearch(){const q=qEl.value.trim().toUpperCase();if(q.length<2){searchSet=null;$('qn').textContent='';return[];}
+  const m=bays.filter(b=>(b.sku&&(b.sku.name.includes(q)||b.sku.name.replace('-','').includes(q)))||b.code.startsWith(q));searchSet=new Set(m);$('qn').textContent=m.length+' lokasi';return m;}
+qEl.addEventListener('input',doSearch);
+qEl.addEventListener('keydown',e=>{if(e.key!=='Enter')return;const m=doSearch();if(m.length){select({k:'bay',o:m[0]});focus(m[0].ax,m[0].cy,3);mapEl.scrollIntoView({block:'nearest',behavior:'smooth'});}});
+
+/* ============ loop utama ============ */
+function ui(){renderVitals();renderFlow();renderDocks();renderFleet();renderSigs();renderInsp();}
+let last=performance.now(),lastUI=0;
+function frame(now){const rdt=Math.min(.05,(now-last)/1000);last=now;let sdt=rdt*speed;while(sdt>0){const d=Math.min(1,sdt);step(d);sdt-=d;}
+  draw();if(now-lastUI>450){ui();lastUI=now;}requestAnimationFrame(frame);}
+ui();draw();requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
